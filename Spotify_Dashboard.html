@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Analytics Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Papa Parse for CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <!-- Chart.js and DataLabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+
+    <style>
+        :root {
+            --spotify-green: #1DB954;
+            --spotify-green-hover: #1ED760;
+            --bg-dark: #090909;
+            --card-dark: #121212;
+            --card-dark-secondary: #181818;
+            --text-primary: #FFFFFF;
+            --text-secondary: #B3B3B3;
+            --bg-light: #F5F5F5;
+            --card-light: #FFFFFF;
+            --border-light: #E5E5E5;
+            --text-dark: #000000;
+            --chart-grid: #E5E5E5;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            -webkit-font-smoothing: antialiased;
+            padding: 20px;
+        }
+
+        /* --- OVERLAY --- */
+        #upload-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(9, 9, 9, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: var(--text-primary);
+        }
+
+        #upload-overlay svg {
+            width: 80px; height: 80px;
+            fill: var(--spotify-green);
+            margin-bottom: 20px;
+        }
+
+        .upload-btn-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            margin-top: 20px;
+        }
+
+        .btn-upload {
+            border: none;
+            background-color: var(--spotify-green);
+            color: white;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-upload:hover {
+            background-color: var(--spotify-green-hover);
+        }
+
+        .upload-btn-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0; top: 0; opacity: 0;
+            cursor: pointer;
+        }
+
+        /* --- HEADER --- */
+        header {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            border-radius: 16px;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-logo svg {
+            width: 50px; height: 50px;
+            fill: var(--spotify-green);
+        }
+
+        .header-titles h1 {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .header-titles h1 span {
+            color: var(--spotify-green);
+            font-weight: 400;
+        }
+
+        .header-titles p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 2px;
+        }
+
+        .header-filters {
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-group select {
+            background-color: transparent;
+            color: var(--text-secondary);
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 8px 30px 8px 12px;
+            font-size: 14px;
+            appearance: none;
+            cursor: pointer;
+            background-image: url('data:image/svg+xml;utf8,<svg fill="%23B3B3B3" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            background-size: 20px;
+            outline: none;
+            min-width: 140px;
+        }
+
+        .filter-group select:focus {
+            border-color: var(--spotify-green);
+            color: var(--text-primary);
+        }
+        
+        .filter-group select option {
+            background-color: var(--card-dark);
+            color: var(--text-primary);
+        }
+
+        .reset-btn {
+            background: none;
+            border: 1px solid #333;
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            height: 37px;
+            transition: all 0.2s;
+        }
+
+        .reset-btn:hover {
+            border-color: var(--text-primary);
+            color: var(--text-primary);
+        }
+
+        /* --- KPI & TOP SECTION --- */
+        .top-section {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .kpi-card {
+            background-color: var(--card-dark);
+            border-radius: 16px;
+            padding: 24px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: var(--text-primary);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #1f1f1f;
+            transition: transform 0.2s;
+        }
+        
+        .kpi-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .kpi-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid var(--spotify-green);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+
+        .kpi-icon svg {
+            width: 24px;
+            height: 24px;
+            stroke: var(--spotify-green);
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .kpi-value {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .kpi-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        /* Album Type Filter Card */
+        .album-type-card {
+            background-color: var(--card-light);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .album-type-card h3 {
+            font-size: 14px;
+            color: var(--spotify-green);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+        }
+
+        .album-btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .album-btn {
+            flex: 1;
+            background-color: var(--card-dark);
+            color: var(--text-primary);
+            border: none;
+            padding: 10px 0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .album-btn.active {
+            background-color: var(--spotify-green);
+        }
+
+        /* --- CHARTS GRID --- */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .chart-card {
+            background-color: var(--card-light);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chart-card.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid transparent;
+            padding-bottom: 5px;
+        }
+
+        .chart-header h2 {
+            font-size: 16px;
+            font-weight: 700;
+            text-transform: uppercase;
+            position: relative;
+        }
+
+        .chart-header h2::after {
+            content: '';
+            position: absolute;
+            bottom: -7px;
+            left: 0;
+            width: 30px;
+            height: 3px;
+            background-color: var(--spotify-green);
+            border-radius: 2px;
+        }
+
+        .chart-container {
+            position: relative;
+            flex-grow: 1;
+            min-height: 300px;
+            width: 100%;
+        }
+
+        /* Explicit vs Non-Explicit Specific Styles */
+        .explicit-layout {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            height: 100%;
+            padding: 20px 0;
+        }
+
+        .donut-container {
+            width: 250px;
+            height: 250px;
+            position: relative;
+        }
+
+        .explicit-cards {
+            display: flex;
+            gap: 20px;
+        }
+
+        .exp-stat-card {
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            min-width: 180px;
+        }
+
+        .exp-stat-card.non-explicit h4 { color: var(--spotify-green); }
+        .exp-stat-card.explicit h4 { color: var(--text-dark); }
+
+        .exp-stat-card h4 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .exp-stat-card .val {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        
+        .exp-stat-card .lbl {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .exp-stat-card .bottom-stat {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .exp-stat-card .mini-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .exp-stat-card.non-explicit .mini-icon { background-color: var(--spotify-green); }
+        .exp-stat-card.explicit .mini-icon { background-color: var(--text-dark); }
+        
+        .mini-icon svg {
+            width: 14px; height: 14px; stroke: white; fill: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .top-section { grid-template-columns: repeat(3, 1fr); }
+            .album-type-card { grid-column: 1 / -1; }
+        }
+        @media (max-width: 900px) {
+            .charts-grid { grid-template-columns: 1fr; }
+            .header-filters { flex-wrap: wrap; }
+            .explicit-layout { flex-direction: column; gap: 30px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Upload Overlay -->
+    <div id="upload-overlay">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.54.659.301 1.02zm1.44-3.3c-.301.42-.84.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.84.241 1.2zM19.08 7.3c-3.96-2.34-10.44-2.58-14.22-1.44-.6.18-1.2-.12-1.38-.72-.18-.6.12-1.2.72-1.38 4.38-1.26 11.52-1.02 16.08 1.68.54.3 0.72 1.02.42 1.56-.3.54-1.02.72-1.62.3z"/></svg>
+        <h2>Welcome to Spotify Analytics</h2>
+        <p style="margin-top: 10px; color: var(--text-secondary);">Load your cleaned Spotify CSV dataset to generate the dashboard.</p>
+        <div class="upload-btn-wrapper">
+            <button class="btn-upload">Load CSV</button>
+            <input type="file" id="csvFileInput" accept=".csv" />
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header>
+        <div class="header-left">
+            <div class="header-logo">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.54.659.301 1.02zm1.44-3.3c-.301.42-.84.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.84.241 1.2zM19.08 7.3c-3.96-2.34-10.44-2.58-14.22-1.44-.6.18-1.2-.12-1.38-.72-.18-.6.12-1.2.72-1.38 4.38-1.26 11.52-1.02 16.08 1.68.54.3 0.72 1.02.42 1.56-.3.54-1.02.72-1.62.3z"/></svg>
+            </div>
+            <div class="header-titles">
+                <h1>Spotify <span>Analytics</span></h1>
+                <p>Track • Artist • Popularity Insights</p>
+            </div>
+        </div>
+        <div class="header-filters">
+            <div class="filter-group">
+                <label>Release Year</label>
+                <select id="filter-year">
+                    <option value="All">All</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Album Type</label>
+                <select id="filter-album-type">
+                    <option value="All">All</option>
+                    <option value="album">Album</option>
+                    <option value="single">Single</option>
+                    <option value="compilation">Compilation</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Content Type</label>
+                <select id="filter-content-type">
+                    <option value="All">All</option>
+                    <option value="Explicit">Explicit</option>
+                    <option value="Non-Explicit">Non-Explicit</option>
+                </select>
+            </div>
+            <button class="reset-btn" id="btn-reset">Reset</button>
+        </div>
+    </header>
+
+    <!-- Top KPI Section -->
+    <div class="top-section">
+        <div class="kpi-card">
+            <div class="kpi-icon">
+                <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+            </div>
+            <div class="kpi-value" id="kpi-total-tracks">0</div>
+            <div class="kpi-label">Total Tracks</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon">
+                <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            </div>
+            <div class="kpi-value" id="kpi-total-artists">0</div>
+            <div class="kpi-label">Total Artists</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon">
+                <svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>
+            </div>
+            <div class="kpi-value" id="kpi-avg-popularity">0.00</div>
+            <div class="kpi-label">Avg Track Popularity</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <div class="kpi-value"><span id="kpi-avg-duration">0.00</span> <span style="font-size: 16px;">min</span></div>
+            <div class="kpi-label">Avg Track Duration</div>
+        </div>
+        
+        <div class="album-type-card">
+            <h3>Album Type</h3>
+            <div class="album-btn-group">
+                <button class="album-btn" data-val="album">Album</button>
+                <button class="album-btn" data-val="single">Single</button>
+                <button class="album-btn" data-val="compilation">Compilation</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+        <!-- Chart 1 -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h2>1. Top 10 Most Popular Tracks</h2>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart1"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 2 -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h2>2. Average Track Popularity By Release Year</h2>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart2"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 3 -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h2>3. Top 10 Artists By Average Track Popularity</h2>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart3"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 4 -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h2>4. Average Track Popularity By Release Month</h2>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart4"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 5 -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h2>5. Popularity By Album Type</h2>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart5"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 6 -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h2>6. Track Volume vs Artist Performance</h2>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart6"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 7 -->
+        <div class="chart-card full-width">
+            <div class="chart-header">
+                <h2>7. Explicit vs Non-Explicit Popularity</h2>
+            </div>
+            <div class="explicit-layout">
+                <div class="donut-container">
+                    <canvas id="chart7"></canvas>
+                </div>
+                <div class="explicit-cards">
+                    <div class="exp-stat-card non-explicit">
+                        <h4>Non-Explicit</h4>
+                        <div class="val" id="exp-non-val">0.00</div>
+                        <div class="lbl">Avg Track Popularity</div>
+                        <div class="bottom-stat">
+                            <div class="mini-icon"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div>
+                            <span id="exp-non-tracks">0</span>
+                        </div>
+                        <div class="lbl" style="margin-top: 4px; margin-bottom: 0;">Total Tracks</div>
+                    </div>
+                    <div class="exp-stat-card explicit">
+                        <h4>Explicit</h4>
+                        <div class="val" id="exp-val">0.00</div>
+                        <div class="lbl">Avg Track Popularity</div>
+                        <div class="bottom-stat">
+                            <div class="mini-icon"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div>
+                            <span id="exp-tracks">0</span>
+                        </div>
+                        <div class="lbl" style="margin-top: 4px; margin-bottom: 0;">Total Tracks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Logic -->
+    <script>
+        // --- Global State ---
+        let rawData = [];
+        let filteredData = [];
+        let chartInstances = {};
+
+        // Chart.js Configuration
+        Chart.register(ChartDataLabels);
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = "#777777";
+        Chart.defaults.scale.grid.color = "rgba(229, 229, 229, 0.5)";
+
+        const colors = {
+            green: '#1DB954',
+            dark: '#121212',
+            grid: '#E5E5E5'
+        };
+
+        const numFormat = new Intl.NumberFormat('en-US');
+
+        // --- File Upload & Parsing ---
+        document.getElementById('csvFileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    processData(results.data);
+                    document.getElementById('upload-overlay').style.display = 'none';
+                }
+            });
+        });
+
+        function processData(data) {
+            rawData = data.map(row => {
+                // Normalize explicit flag
+                let expl = row.explicit;
+                if(typeof expl === 'string') expl = expl.toLowerCase() === 'true' || expl === '1';
+                
+                // Calculate duration in min if missing
+                let durationMin = row.track_duration_min;
+                if (!durationMin && row.track_duration_ms) {
+                    durationMin = row.track_duration_ms / 60000;
+                }
+
+                return {
+                    ...row,
+                    explicitStr: expl ? 'Explicit' : 'Non-Explicit',
+                    track_popularity: Number(row.track_popularity) || 0,
+                    track_duration_min: Number(durationMin) || 0,
+                    release_year: Number(row.release_year) || 0,
+                    release_month: Number(row.release_month) || 0,
+                    album_type: (row.album_type || '').toLowerCase()
+                };
+            });
+
+            populateFilters();
+            applyFilters();
+        }
+
+        // --- Filtering Logic ---
+        function populateFilters() {
+            const yearSelect = document.getElementById('filter-year');
+            const years = [...new Set(rawData.map(d => d.release_year))].filter(y => y > 0).sort((a,b) => b - a);
+            
+            // Clear existing except "All"
+            yearSelect.innerHTML = '<option value="All">All</option>';
+            years.forEach(y => {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                yearSelect.appendChild(opt);
+            });
+        }
+
+        function applyFilters() {
+            const yearVal = document.getElementById('filter-year').value;
+            const albumVal = document.getElementById('filter-album-type').value;
+            const contentVal = document.getElementById('filter-content-type').value;
+
+            filteredData = rawData.filter(d => {
+                let matchYear = yearVal === 'All' || d.release_year.toString() === yearVal;
+                let matchAlbum = albumVal === 'All' || d.album_type === albumVal;
+                let matchContent = contentVal === 'All' || d.explicitStr === contentVal;
+                return matchYear && matchAlbum && matchContent;
+            });
+
+            updateDashboard();
+        }
+
+        // --- Event Listeners ---
+        document.getElementById('filter-year').addEventListener('change', applyFilters);
+        document.getElementById('filter-content-type').addEventListener('change', applyFilters);
+        
+        const headerAlbumSelect = document.getElementById('filter-album-type');
+        const albumButtons = document.querySelectorAll('.album-btn');
+
+        headerAlbumSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            albumButtons.forEach(btn => {
+                if(btn.dataset.val === val) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+            applyFilters();
+        });
+
+        albumButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const val = e.target.dataset.val;
+                if(btn.classList.contains('active')) {
+                    // deselect
+                    btn.classList.remove('active');
+                    headerAlbumSelect.value = 'All';
+                } else {
+                    albumButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    headerAlbumSelect.value = val;
+                }
+                applyFilters();
+            });
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            document.getElementById('filter-year').value = 'All';
+            document.getElementById('filter-album-type').value = 'All';
+            document.getElementById('filter-content-type').value = 'All';
+            albumButtons.forEach(b => b.classList.remove('active'));
+            applyFilters();
+        });
+
+        // --- Dashboard Updater ---
+        function updateDashboard() {
+            updateKPIs();
+            renderChart1();
+            renderChart2();
+            renderChart3();
+            renderChart4();
+            renderChart5();
+            renderChart6();
+            renderChart7();
+        }
+
+        // --- Aggregation Utils ---
+        function getDistinct(data, key) {
+            return new Set(data.map(d => d[key])).size;
+        }
+
+        function getAverage(data, key) {
+            if(data.length === 0) return 0;
+            const sum = data.reduce((acc, val) => acc + (val[key] || 0), 0);
+            return sum / data.length;
+        }
+
+        function groupByAvg(data, groupKey, avgKey) {
+            const groups = {};
+            data.forEach(d => {
+                if(!d[groupKey]) return;
+                if(!groups[d[groupKey]]) groups[d[groupKey]] = { sum: 0, count: 0 };
+                groups[d[groupKey]].sum += d[avgKey];
+                groups[d[groupKey]].count += 1;
+            });
+            return Object.keys(groups).map(k => ({
+                key: k,
+                avg: groups[k].sum / groups[k].count,
+                count: groups[k].count
+            }));
+        }
+
+        // --- Update KPIs ---
+        function updateKPIs() {
+            document.getElementById('kpi-total-tracks').innerText = numFormat.format(getDistinct(filteredData, 'track_id'));
+            document.getElementById('kpi-total-artists').innerText = numFormat.format(getDistinct(filteredData, 'artist_name'));
+            document.getElementById('kpi-avg-popularity').innerText = getAverage(filteredData, 'track_popularity').toFixed(2);
+            document.getElementById('kpi-avg-duration').innerText = getAverage(filteredData, 'track_duration_min').toFixed(2);
+        }
+
+        // --- Chart Renderers ---
+        function destroyChart(id) {
+            if (chartInstances[id]) chartInstances[id].destroy();
+        }
+
+        // 1. Top 10 Most Popular Tracks
+        function renderChart1() {
+            const id = 'chart1';
+            destroyChart(id);
+            if(filteredData.length === 0) return;
+
+            // Sort by popularity desc, then deduplicate by track name
+            const sorted = [...filteredData].sort((a, b) => b.track_popularity - a.track_popularity);
+            const top10 = [];
+            const seen = new Set();
+            for(let d of sorted) {
+                if(!seen.has(d.track_name)) {
+                    seen.add(d.track_name);
+                    top10.push(d);
+                    if(top10.length === 10) break;
+                }
+            }
+
+            const ctx = document.getElementById(id).getContext('2d');
+            chartInstances[id] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: top10.map((d, i) => `${i+1}. ${d.track_name}`),
+                    datasets: [{
+                        label: 'Track Popularity',
+                        data: top10.map(d => d.track_popularity),
+                        backgroundColor: colors.green,
+                        barThickness: 16,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: (ctx) => `Artist: ${top10[ctx.dataIndex].artist_name}`
+                            }
+                        },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'right',
+                            color: colors.dark,
+                            font: { weight: 'bold' },
+                            formatter: Math.round
+                        }
+                    },
+                    scales: {
+                        x: { max: 100, grid: { color: colors.grid } },
+                        y: { 
+                            grid: { display: false },
+                            ticks: { font: { weight: '600' }, color: colors.dark }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 2. Avg Popularity by Release Year
+        function renderChart2() {
+            const id = 'chart2';
+            destroyChart(id);
+            if(filteredData.length === 0) return;
+
+            let yearlyData = groupByAvg(filteredData, 'release_year', 'track_popularity');
+            yearlyData = yearlyData.filter(d => Number(d.key) > 0).sort((a,b) => Number(a.key) - Number(b.key));
+
+            const ctx = document.getElementById(id).getContext('2d');
+            chartInstances[id] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: yearlyData.map(d => d.key),
+                    datasets: [{
+                        label: 'Avg Track Popularity',
+                        data: yearlyData.map(d => d.avg),
+                        borderColor: colors.green,
+                        backgroundColor: colors.green,
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        pointBackgroundColor: colors.green,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: { display: false }
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { min: 0, max: 100, grid: { color: colors.grid } }
+                    }
+                }
+            });
+        }
+
+        // 3. Top 10 Artists By Avg Track Popularity
+        function renderChart3() {
+            const id = 'chart3';
+            destroyChart(id);
+            if(filteredData.length === 0) return;
+
+            let artistData = groupByAvg(filteredData, 'artist_name', 'track_popularity');
+            // Ensure significant sample size, min 3 tracks unless heavily filtered
+            if(artistData.length > 20) {
+                artistData = artistData.filter(d => d.count >= 2); 
+            }
+            artistData.sort((a, b) => b.avg - a.avg);
+            const top10 = artistData.slice(0, 10);
+
+            const ctx = document.getElementById(id).getContext('2d');
+            chartInstances[id] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: top10.map((d, i) => `${i+1}. ${d.key}`),
+                    datasets: [{
+                        label: 'Avg Track Popularity',
+                        data: top10.map(d => d.avg),
+                        backgroundColor: colors.green,
+                        barThickness: 16,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'right',
+                            color: colors.dark,
+                            font: { weight: 'bold' },
+                            formatter: (val) => val.toFixed(2)
+                        }
+                    },
+                    scales: {
+                        x: { max: 100, grid: { color: colors.grid } },
+                        y: { 
+                            grid: { display: false },
+                            ticks: { font: { weight: '600' }, color: colors.dark }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 4. Avg Pop by Release Month (Combo)
+        function renderChart4() {
+            const id = 'chart4';
+            destroyChart(id);
+            if(filteredData.length === 0) return;
+
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            // Map 1-12
+            let monthly = new Array(12).fill(0).map(() => ({ sum: 0, count: 0 }));
+            filteredData.forEach(d => {
+                let m = d.release_month;
+                if(m >= 1 && m <= 12) {
+                    monthly[m-1].sum += d.track_popularity;
+                    monthly[m-1].count += 1;
+                }
+            });
+
+            const counts = monthly.map(m => m.count);
+            const avgs = monthly.map(m => m.count > 0 ? (m.sum / m.count) : 0);
+
+            const ctx = document.getElementById(id).getContext('2d');
+            chartInstances[id] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: monthNames,
+                    datasets: [
+                        {
+                            type: 'line',
+                            label: 'Avg Track Popularity',
+                            data: avgs,
+                            borderColor: colors.dark,
+                            backgroundColor: colors.dark,
+                            borderWidth: 2,
+                            pointRadius: 4,
+                            yAxisID: 'y1',
+                            order: 1
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Total Tracks',
+                            data: counts,
+                            backgroundColor: colors.green,
+                            yAxisID: 'y',
+                            order: 2,
+                            barPercentage: 0.6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        datalabels: { display: false },
+                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10 } }
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Total Tracks', color: colors.green },
+                            ticks: { color: colors.green, callback: function(val) { return val >= 1000 ? (val/1000)+'K' : val; } },
+                            grid: { color: colors.grid }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Avg Track Popularity', color: colors.dark },
+                            min: 0, max: 100,
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 5. Popularity by Album Type
+        function renderChart5() {
+            const id = 'chart5';
+            destroyChart(id);
+            if(filteredData.length === 0) return;
+
+            const order = ['album', 'single', 'compilation'];
+            const labels = ['Album', 'Single', 'Compilation'];
+            
+            let grouped = groupByAvg(filteredData, 'album_type', 'track_popularity');
+            let dataArr = order.map(type => {
+                let found = grouped.find(g => g.key === type);
+                return found ? found.avg : 0;
+            });
+
+            const ctx = document.getElementById(id).getContext('2d');
+            chartInstances[id] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Avg Track Popularity',
+                        data: dataArr,
+                        backgroundColor: colors.green,
+                        barPercentage: 0.5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            color: colors.dark,
+                            font: { weight: 'bold', size: 14 },
+                            formatter: (val) => val > 0 ? val.toFixed(2) : ''
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { weight: '600' }, color: colors.dark } },
+                        y: { max: 100, grid: { color: colors.grid }, title: { display: true, text: 'Avg Track Popularity' } }
+                    }
+                }
+            });
+        }
+
+        // 6. Track Volume vs Artist Performance (Combo) NO SCATTER
+        function renderChart6() {
+            const id = 'chart6';
+            destroyChart(id);
+            if(filteredData.length === 0) return;
+
+            let artistData = groupByAvg(filteredData, 'artist_name', 'track_popularity');
+            // Top 10 by VOLUME
+            artistData.sort((a, b) => b.count - a.count);
+            const top10 = artistData.slice(0, 10);
+
+            const ctx = document.getElementById(id).getContext('2d');
+            chartInstances[id] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: top10.map(d => d.key),
+                    datasets: [
+                        {
+                            type: 'line',
+                            label: 'Avg Track Popularity',
+                            data: top10.map(d => d.avg),
+                            borderColor: colors.dark,
+                            backgroundColor: colors.dark,
+                            borderWidth: 2,
+                            pointRadius: 4,
+                            yAxisID: 'y1',
+                            order: 1
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Total Tracks',
+                            data: top10.map(d => d.count),
+                            backgroundColor: colors.green,
+                            yAxisID: 'y',
+                            order: 2,
+                            barPercentage: 0.6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        datalabels: { display: false },
+                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10 } }
+                    },
+                    scales: {
+                        x: { 
+                            grid: { display: false },
+                            ticks: { maxRotation: 45, minRotation: 45 }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Total Tracks', color: colors.green },
+                            ticks: { color: colors.green, callback: function(val) { return val >= 1000 ? (val/1000)+'K' : val; } },
+                            grid: { color: colors.grid }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Avg Track Popularity', color: colors.dark },
+                            min: 0, max: 100,
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 7. Explicit vs Non-Explicit Popularity (Donut + Summary)
+        function renderChart7() {
+            const id = 'chart7';
+            destroyChart(id);
+            if(filteredData.length === 0) return;
+
+            let expData = groupByAvg(filteredData, 'explicitStr', 'track_popularity');
+            
+            let explicitObj = expData.find(d => d.key === 'Explicit') || { count: 0, avg: 0 };
+            let nonExpObj = expData.find(d => d.key === 'Non-Explicit') || { count: 0, avg: 0 };
+
+            const total = explicitObj.count + nonExpObj.count;
+            
+            // Update HTML Cards
+            document.getElementById('exp-non-val').innerText = nonExpObj.avg.toFixed(2);
+            document.getElementById('exp-non-tracks').innerText = numFormat.format(nonExpObj.count);
+            
+            document.getElementById('exp-val').innerText = explicitObj.avg.toFixed(2);
+            document.getElementById('exp-tracks').innerText = numFormat.format(explicitObj.count);
+
+            const ctx = document.getElementById(id).getContext('2d');
+            chartInstances[id] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Non-Explicit', 'Explicit'],
+                    datasets: [{
+                        data: [nonExpObj.count, explicitObj.count],
+                        backgroundColor: [colors.green, colors.dark],
+                        borderWidth: 0,
+                        cutout: '70%'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { usePointStyle: true, padding: 20, font: {size: 14} } },
+                        datalabels: {
+                            formatter: (value) => {
+                                if(total === 0) return '';
+                                let pct = (value / total * 100).toFixed(1) + '%';
+                                return pct;
+                            },
+                            color: colors.dark,
+                            font: { weight: 'bold', size: 14 },
+                            anchor: 'end',
+                            align: 'end',
+                            offset: 10
+                        }
+                    },
+                    layout: { padding: 30 }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
